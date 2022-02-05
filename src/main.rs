@@ -1,10 +1,11 @@
+use indicatif::ProgressBar;
 use jwalk::DirEntry;
 use owo_colors::{AnsiColors, OwoColorize};
-use rayon::iter::{ParallelBridge, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator};
+use rusty_pool::ThreadPool;
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let start = Instant::now();
 
     let args = std::env::args().collect::<Vec<String>>();
@@ -37,42 +38,37 @@ async fn main() {
         .map(|v| v.unwrap())
         .collect();
 
+    let bar = ProgressBar::new(entries.len() as u64);
+
     for entry in entries {
-        if tree.contains_key(&(entry.depth as u64)) {
-            tree.get_mut(&(entry.depth as u64))
-                .unwrap()
-                .push(entry.path());
-        } else {
-            tree.insert(entry.depth as u64, vec![entry.path()]);
-        }
+        tree.entry(entry.depth as u64)
+            .or_insert_with(Vec::new)
+            .push(entry.path());
     }
 
-    for (depth, entries) in tree.iter().rev() {
-        println!("{depth}");
+    let pool = ThreadPool::default();
+
+    let mut handles = vec![];
+
+    for (_, entries) in tree.into_iter().rev() {
+        let bar = bar.clone();
+
+        handles.push(pool.evaluate(move || {
+            entries.par_iter().for_each(|entry| {
+                let _ = std::fs::remove_dir_all(entry);
+                bar.inc(1);
+            });
+        }));
     }
 
-    println!("{}", start.elapsed().as_secs_f32());
+    for handle in handles {
+        handle.await_complete();
+    }
 
-    // println!("{:#?}", tree.keys());
+    std::fs::remove_dir_all(args.get(1).unwrap()).unwrap_or_else(|err| {
+        eprintln!("Could not delete {} - {err}", args.get(1).unwrap());
+        std::process::exit(1);
+    });
 
-    // let mut workers = FuturesUnordered::new();
-
-    // while !entries.is_empty() {
-    // let chunk = entries.split_off(entries.len().saturating_sub(5));
-
-    // // move chunk into your task
-    // workers.push(tokio::task::spawn_blocking(
-    //     move || -> Result<(), String> {
-    //         for item in chunk.iter() {
-    //             std::fs::remove_dir_all(item).unwrap();
-    //         }
-    //         Ok(())
-    //     },
-    // ));
-    // }
-
-    // while let Some(_) = workers.next().await {
-    // println!("done");
-    // }
-    // }
+    bar.println(format!("{}", start.elapsed().as_secs_f32()));
 }
