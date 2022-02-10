@@ -3,24 +3,40 @@ use jwalk::DirEntry;
 use owo_colors::{AnsiColors, OwoColorize};
 use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator};
 use rusty_pool::ThreadPool;
-use std::{collections::BTreeMap, path::PathBuf, time::Instant};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+    time::Instant,
+};
+
+// change a file to be writable
+pub fn set_writable(path: &Path) {
+    let mut perms = std::fs::metadata(path).unwrap().permissions();
+
+    perms.set_readonly(false);
+
+    std::fs::set_permissions(path, perms).unwrap();
+}
 
 fn main() {
     let start = Instant::now();
 
     let args = std::env::args().collect::<Vec<String>>();
 
-    let file_path = args.get(1).unwrap_or_else(|| {
-        eprintln!(
-            "{} {}\n\n{}:\n{} {}",
-            " ERROR ".on_color(AnsiColors::BrightRed).black(),
-            "Please provide a folder path.".bright_yellow(),
-            "Examples".underline(),
-            "turbodelete".bright_cyan(),
-            "./node_modules/".bright_black(),
-        );
-        std::process::exit(1);
-    });
+    let mut file_path: String = args
+        .get(1)
+        .unwrap_or_else(|| {
+            eprintln!(
+                "{} {}\n\n{}:\n{} {}",
+                " ERROR ".on_color(AnsiColors::BrightRed).black(),
+                "Please provide a folder path.".bright_yellow(),
+                "Examples".underline(),
+                "turbodelete".bright_cyan(),
+                "./node_modules/".bright_black(),
+            );
+            std::process::exit(1);
+        })
+        .to_string();
 
     // different methods to test out...
     // 1. only delete all folders using rm_dir_all
@@ -28,8 +44,14 @@ fn main() {
 
     let mut tree: BTreeMap<u64, Vec<PathBuf>> = BTreeMap::new();
 
+    if file_path.ends_with('"') {
+        file_path.pop();
+    }
+
+    let path = PathBuf::from(&file_path);
+
     // get complete list of folders
-    let entries: Vec<DirEntry<((), ())>> = jwalk::WalkDir::new(file_path)
+    let entries: Vec<DirEntry<((), ())>> = jwalk::WalkDir::new(&path)
         .follow_links(true)
         .skip_hidden(false)
         .into_iter()
@@ -56,6 +78,7 @@ fn main() {
         handles.push(pool.evaluate(move || {
             entries.par_iter().for_each(|entry| {
                 let _ = std::fs::remove_dir_all(entry);
+
                 bar.inc(1);
             });
         }));
@@ -65,8 +88,46 @@ fn main() {
         handle.await_complete();
     }
 
-    std::fs::remove_dir_all(args.get(1).unwrap()).unwrap_or_else(|err| {
-        eprintln!("Could not delete {} - {err}", args.get(1).unwrap());
+    // get complete list of folders
+    let entries: Vec<DirEntry<((), ())>> = jwalk::WalkDir::new(&path)
+        .follow_links(true)
+        .skip_hidden(false)
+        .into_iter()
+        .filter(|v| {
+            v.as_ref()
+                .unwrap_or_else(|err| {
+                    eprintln!(
+                        "{} {}",
+                        " ERROR ".on_color(AnsiColors::BrightRed).black(),
+                        err
+                    );
+                    std::process::exit(1);
+                })
+                .path()
+                .is_file()
+        })
+        .map(|v| {
+            v.unwrap_or_else(|err| {
+                eprintln!(
+                    "{} {}",
+                    " ERROR ".on_color(AnsiColors::BrightRed).black(),
+                    err
+                );
+                std::process::exit(1);
+            })
+        })
+        .collect::<Vec<DirEntry<((), ())>>>();
+
+    entries.par_iter().for_each(|entry| {
+        set_writable(&entry.path());
+    });
+
+    std::fs::remove_dir_all(path).unwrap_or_else(|err| {
+        eprintln!(
+            "{} {}",
+            " ERROR ".on_color(AnsiColors::BrightRed).black(),
+            err
+        );
         std::process::exit(1);
     });
 

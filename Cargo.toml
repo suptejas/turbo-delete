@@ -12,3 +12,9 @@ indicatif = "0.16.2"
 owo-colors = "3.2.0"
 rayon = "1.5.1"
 rusty_pool = "0.6.0"
+
+[profile.release-optimized]
+inherits = "release"
+opt-level = 3
+lto = "fat"
+codegen-units = 1    # Reduce number of codegen units to increase optimizations.
