@@ -10,13 +10,16 @@
 <p align="center">
   <img src="https://img.shields.io/badge/version-0.0.1-green"> <img src="https://img.shields.io/github/license/XtremeDevX/turbo-delete?color=pink"> <img src="https://img.shields.io/tokei/lines/github/XtremeDevX/turbo-delete?color=white&label=lines%20of%20code"> <img src="https://img.shields.io/github/languages/top/XtremeDevX/turbo-delete?color=%230xfffff"> <img src="https://img.shields.io/github/repo-size/XtremeDevX/turbo-delete?color=orange">
 </p>
+
 <br>
 
-![Deleting A Folder using Turbo-Delete](https://github.com/XtremeDevX/turbo-delete/blob/master/assets/delete-animation.mp4?raw=true)
+![comparison](https://user-images.githubusercontent.com/63039748/154819625-dce22227-0415-411f-8b53-708566ace569.gif)
 
 Turbodelete is a blazing fast alternative to the default Windows delete function.
 
 > TurboDelete integrates with your context menu as well as the command-line!
+
+<br>
 
 # :zap: Installation
 
@@ -36,6 +39,7 @@ Run the following command on your powershell window:
 iwr -useb cdn.xtremedevx.com/turbo-delete/install.ps1 | iex
 ```
 
+<br>
 <br>
 
 ## :clap: Supporters
