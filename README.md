@@ -12,7 +12,7 @@
 </p>
 <br>
 
-![Deleting A Folder using Turbo-Delete](https://github.com/XtremeDevX/turbo-delete/blob/master/assets/delete-animation.gif?raw=true)
+![Deleting A Folder using Turbo-Delete](https://github.com/XtremeDevX/turbo-delete/blob/master/assets/delete-animation.mp4?raw=true)
 
 Turbodelete is a blazing fast alternative to the default Windows delete function.
 
