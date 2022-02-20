@@ -44,7 +44,7 @@ iwr -useb cdn.xtremedevx.com/turbo-delete/install.ps1 | iex
 
 ## :clap: Supporters
 
-[![Stargazers repo roster for @XtremeDevX/turbo-delete](https://reporoster.com/stars/XtremeDevX/turbo-delete)](https://github.com/XtremeDevX/turbo-delete/stargazers)
+![Stargazers repo roster for @XtremeDevX/turbo-delete](https://reporoster.com/stars/XtremeDevX/turbo-delete)
 
 <br>
 
