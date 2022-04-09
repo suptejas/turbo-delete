@@ -140,16 +140,19 @@ fn main() {
         handle.await_complete();
     }
 
-    set_folder_writable(&path);
+    if path.exists() {
+        // Try to fix permisssion issues and delete again
+        set_folder_writable(&path);
 
-    std::fs::remove_dir_all(path).unwrap_or_else(|err| {
-        eprintln!(
-            "{} {}",
-            " ERROR ".on_color(AnsiColors::BrightRed).black(),
-            err
-        );
-        std::process::exit(1);
-    });
+        std::fs::remove_dir_all(path).unwrap_or_else(|err| {
+            eprintln!(
+                "{} {}",
+                " ERROR ".on_color(AnsiColors::BrightRed).black(),
+                err
+            );
+            std::process::exit(1);
+        });
+    }
 
     bar.println(format!("{}", start.elapsed().as_secs_f32()));
 }
