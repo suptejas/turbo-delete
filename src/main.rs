@@ -34,6 +34,42 @@ pub fn set_writable(path: &Path) {
     std::fs::set_permissions(path, perms).unwrap();
 }
 
+pub fn set_folder_writable(path: &Path) {
+    // get complete list of folders
+    let entries: Vec<DirEntry<((), ())>> = jwalk::WalkDir::new(&path)
+        .follow_links(true)
+        .skip_hidden(false)
+        .into_iter()
+        .filter(|v| {
+            v.as_ref()
+                .unwrap_or_else(|err| {
+                    eprintln!(
+                        "{} {}",
+                        " ERROR ".on_color(AnsiColors::BrightRed).black(),
+                        err
+                    );
+                    std::process::exit(1);
+                })
+                .path()
+                .is_file()
+        })
+        .map(|v| {
+            v.unwrap_or_else(|err| {
+                eprintln!(
+                    "{} {}",
+                    " ERROR ".on_color(AnsiColors::BrightRed).black(),
+                    err
+                );
+                std::process::exit(1);
+            })
+        })
+        .collect::<Vec<DirEntry<((), ())>>>();
+
+    entries.par_iter().for_each(|entry| {
+        set_writable(&entry.path());
+    });
+}
+
 fn main() {
     let start = Instant::now();
 
@@ -104,48 +140,19 @@ fn main() {
         handle.await_complete();
     }
 
-    // get complete list of folders
-    let entries: Vec<DirEntry<((), ())>> = jwalk::WalkDir::new(&path)
-        .follow_links(true)
-        .skip_hidden(false)
-        .into_iter()
-        .filter(|v| {
-            v.as_ref()
-                .unwrap_or_else(|err| {
-                    eprintln!(
-                        "{} {}",
-                        " ERROR ".on_color(AnsiColors::BrightRed).black(),
-                        err
-                    );
-                    std::process::exit(1);
-                })
-                .path()
-                .is_file()
-        })
-        .map(|v| {
-            v.unwrap_or_else(|err| {
-                eprintln!(
-                    "{} {}",
-                    " ERROR ".on_color(AnsiColors::BrightRed).black(),
-                    err
-                );
-                std::process::exit(1);
-            })
-        })
-        .collect::<Vec<DirEntry<((), ())>>>();
+    if path.exists() {
+        // Try to fix permisssion issues and delete again
+        set_folder_writable(&path);
 
-    entries.par_iter().for_each(|entry| {
-        set_writable(&entry.path());
-    });
-
-    std::fs::remove_dir_all(path).unwrap_or_else(|err| {
-        eprintln!(
-            "{} {}",
-            " ERROR ".on_color(AnsiColors::BrightRed).black(),
-            err
-        );
-        std::process::exit(1);
-    });
+        std::fs::remove_dir_all(path).unwrap_or_else(|err| {
+            eprintln!(
+                "{} {}",
+                " ERROR ".on_color(AnsiColors::BrightRed).black(),
+                err
+            );
+            std::process::exit(1);
+        });
+    }
 
     bar.println(format!("{}", start.elapsed().as_secs_f32()));
 }
