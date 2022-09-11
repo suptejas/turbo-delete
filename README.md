@@ -51,7 +51,7 @@ iwr -useb cdn.xtremedevx.com/turbo-delete/install.ps1 | iex
 
 ## Authors
 
-[XtremeDevX](https://www.github.com/XtremeDevX) 
+[Tejas](https://www.github.com/suptejas) 
 
 ## Versioning
 
