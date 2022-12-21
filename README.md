@@ -7,12 +7,6 @@
 <h4 align="center">A blazing fast alternative to the default Windows delete.</h1>
 <br>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/version-0.0.1-green"> <img src="https://img.shields.io/github/license/XtremeDevX/turbo-delete?color=pink"> <img src="https://img.shields.io/tokei/lines/github/XtremeDevX/turbo-delete?color=white&label=lines%20of%20code"> <img src="https://img.shields.io/github/languages/top/XtremeDevX/turbo-delete?color=%230xfffff"> <img src="https://img.shields.io/github/repo-size/XtremeDevX/turbo-delete?color=orange">
-</p>
-
-<br>
-
 ![comparison](https://user-images.githubusercontent.com/63039748/154819625-dce22227-0415-411f-8b53-708566ace569.gif)
 
 Turbodelete is a blazing fast alternative to the default Windows delete function.
@@ -44,7 +38,7 @@ iwr -useb cdn.xtremedevx.com/turbo-delete/install.ps1 | iex
 
 ## :clap: Supporters
 
-![Stargazers repo roster for @XtremeDevX/turbo-delete](https://reporoster.com/stars/XtremeDevX/turbo-delete)
+![Stargazers repo roster for @suptejas/turbo-delete](https://reporoster.com/stars/suptejas/turbo-delete)
 
 <br>
 
@@ -55,7 +49,7 @@ iwr -useb cdn.xtremedevx.com/turbo-delete/install.ps1 | iex
 
 ## Versioning
 
-We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/XtremeDevX/turbo-delete/tags).
+We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/suptejas/turbo-delete/tags).
 
 ## License
 
