@@ -15,144 +15,180 @@
 */
 
 use indicatif::ProgressBar;
-use jwalk::DirEntry;
 use owo_colors::{AnsiColors, OwoColorize};
-use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator};
-use rusty_pool::ThreadPool;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{
     collections::BTreeMap,
+    io,
     path::{Path, PathBuf},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
-// change a file to be writable
-pub fn set_writable(path: &Path) {
-    let mut perms = std::fs::metadata(path).unwrap().permissions();
+fn print_error(msg: impl std::fmt::Display) {
+    eprintln!(
+        "{} {}",
+        " ERROR ".on_color(AnsiColors::BrightRed).black(),
+        msg
+    );
+}
+
+fn fail(msg: impl std::fmt::Display) -> ! {
+    print_error(msg);
+    std::process::exit(1);
+}
+
+// clear the read-only attribute (only used on real files and folders, never on links)
+fn set_writable(path: &Path) -> io::Result<()> {
+    let mut perms = std::fs::symlink_metadata(path)?.permissions();
 
     perms.set_readonly(false);
 
-    std::fs::set_permissions(path, perms).unwrap();
+    std::fs::set_permissions(path, perms)
 }
 
-pub fn set_folder_writable(path: &Path) {
-    // get complete list of folders
-    let entries: Vec<DirEntry<((), ())>> = jwalk::WalkDir::new(&path)
-        .follow_links(true)
-        .skip_hidden(false)
-        .into_iter()
-        .filter(|v| {
-            v.as_ref()
-                .unwrap_or_else(|err| {
-                    eprintln!(
-                        "{} {}",
-                        " ERROR ".on_color(AnsiColors::BrightRed).black(),
-                        err
-                    );
-                    std::process::exit(1);
-                })
-                .path()
-                .is_file()
-        })
-        .map(|v| {
-            v.unwrap_or_else(|err| {
-                eprintln!(
-                    "{} {}",
-                    " ERROR ".on_color(AnsiColors::BrightRed).black(),
-                    err
-                );
-                std::process::exit(1);
-            })
-        })
-        .collect::<Vec<DirEntry<((), ())>>>();
+fn retry_writable(path: &Path, remove: fn(&Path) -> io::Result<()>) -> io::Result<()> {
+    match remove(path) {
+        Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
+            set_writable(path)?;
+            remove(path)
+        }
+        result => result,
+    }
+}
 
-    entries.par_iter().for_each(|entry| {
-        set_writable(&entry.path());
-    });
+// remove a file or a link. Links (symlinks and junctions) are removed themselves,
+// their target is never touched.
+fn remove_non_dir(path: &Path, is_link: bool) -> io::Result<()> {
+    if is_link {
+        // directory links need remove_dir, file links need remove_file
+        return std::fs::remove_dir(path).or_else(|_| std::fs::remove_file(path));
+    }
+
+    retry_writable(path, |p| std::fs::remove_file(p))
 }
 
 fn main() {
-    let start = Instant::now();
+    let mut file_path = std::env::args().nth(1).unwrap_or_else(|| {
+        eprintln!(
+            "{} {}\n\n{}:\n{} {}",
+            " ERROR ".on_color(AnsiColors::BrightRed).black(),
+            "Please provide a folder path.".bright_yellow(),
+            "Examples".underline(),
+            "turbodelete".bright_cyan(),
+            "./node_modules/".bright_black(),
+        );
+        std::process::exit(1);
+    });
 
-    let args = std::env::args().collect::<Vec<String>>();
-
-    let mut file_path: String = args
-        .get(1)
-        .unwrap_or_else(|| {
-            eprintln!(
-                "{} {}\n\n{}:\n{} {}",
-                " ERROR ".on_color(AnsiColors::BrightRed).black(),
-                "Please provide a folder path.".bright_yellow(),
-                "Examples".underline(),
-                "turbodelete".bright_cyan(),
-                "./node_modules/".bright_black(),
-            );
-            std::process::exit(1);
-        })
-        .to_string();
-
-    // different methods to test out...
-    // 1. only delete all folders using rm_dir_all
-    // 2. delete folders and files using rm_file
-
-    let mut tree: BTreeMap<u64, Vec<PathBuf>> = BTreeMap::new();
-
+    // a trailing backslash before the closing quote escapes the quote ("C:\foo\")
     if file_path.ends_with('"') {
         file_path.pop();
     }
 
-    let path = PathBuf::from(&file_path);
+    // std::path::absolute does not resolve links, unlike canonicalize
+    let path = std::path::absolute(&file_path)
+        .unwrap_or_else(|err| fail(format!("{}: {}", file_path, err)));
 
-    // get complete list of folders
-    let entries: Vec<DirEntry<((), ())>> = jwalk::WalkDir::new(&path)
-        .follow_links(true)
+    let metadata = std::fs::symlink_metadata(&path)
+        .unwrap_or_else(|err| fail(format!("{}: {}", path.display(), err)));
+
+    if metadata.file_type().is_symlink() {
+        // only the link is removed, not the folder it points to
+        remove_non_dir(&path, true)
+            .unwrap_or_else(|err| fail(format!("{}: {}", path.display(), err)));
+        println!("Removed link {}", path.display());
+        return;
+    }
+
+    if !metadata.is_dir() {
+        fail(format!("{} is not a folder", path.display()));
+    }
+
+    let start = Instant::now();
+
+    // collect everything without following links, so junctions and symlinks
+    // inside the folder are removed as links and their targets stay untouched
+    let mut files: Vec<(PathBuf, bool)> = Vec::new();
+    let mut dirs: BTreeMap<usize, Vec<PathBuf>> = BTreeMap::new();
+    let mut walk_errors = 0;
+
+    for entry in jwalk::WalkDir::new(&path)
+        .follow_links(false)
         .skip_hidden(false)
-        .into_iter()
-        .par_bridge()
-        .filter(|v| v.as_ref().unwrap().path().is_dir())
-        .map(|v| v.unwrap())
-        .collect();
-
-    let bar = ProgressBar::new(entries.len() as u64);
-
-    for entry in entries {
-        tree.entry(entry.depth as u64)
-            .or_insert_with(Vec::new)
-            .push(entry.path());
+    {
+        match entry {
+            Ok(entry) => {
+                if entry.file_type.is_dir() {
+                    dirs.entry(entry.depth).or_default().push(entry.path());
+                } else {
+                    files.push((entry.path(), entry.file_type.is_symlink()));
+                }
+            }
+            Err(err) => {
+                walk_errors += 1;
+                print_error(err);
+            }
+        }
     }
 
-    let pool = ThreadPool::default();
+    let total = files.len() + dirs.values().map(Vec::len).sum::<usize>();
+    let bar = ProgressBar::new(total as u64);
 
-    let mut handles = vec![];
+    // files and links first, then the folders from the deepest level up
+    files.par_iter().for_each(|(file, is_link)| {
+        let _ = remove_non_dir(file, *is_link);
+        bar.inc(1);
+    });
 
-    for (_, entries) in tree.into_iter().rev() {
-        let bar = bar.clone();
-
-        handles.push(pool.evaluate(move || {
-            entries.par_iter().for_each(|entry| {
-                let _ = std::fs::remove_dir_all(entry);
-
-                bar.inc(1);
-            });
-        }));
-    }
-
-    for handle in handles {
-        handle.await_complete();
-    }
-
-    if path.exists() {
-        // Try to fix permisssion issues and delete again
-        set_folder_writable(&path);
-
-        std::fs::remove_dir_all(path).unwrap_or_else(|err| {
-            eprintln!(
-                "{} {}",
-                " ERROR ".on_color(AnsiColors::BrightRed).black(),
-                err
-            );
-            std::process::exit(1);
+    for (_, level) in dirs.iter().rev() {
+        level.par_iter().for_each(|dir| {
+            let _ = retry_writable(dir, |p| std::fs::remove_dir(p));
+            bar.inc(1);
         });
     }
 
-    bar.println(format!("{}", start.elapsed().as_secs_f32()));
+    bar.finish_and_clear();
+
+    // files that were still open (e.g. by a virus scanner) may vanish with a short delay.
+    // std::fs::remove_dir_all does not follow links, so it is safe as a fallback.
+    let mut last_error = None;
+
+    for attempt in 0..3 {
+        if std::fs::symlink_metadata(&path).is_err() {
+            break;
+        }
+
+        std::thread::sleep(Duration::from_millis(100 * attempt));
+
+        if let Err(err) = std::fs::remove_dir_all(&path) {
+            last_error = Some(err);
+        }
+    }
+
+    if std::fs::symlink_metadata(&path).is_ok() {
+        let remaining = jwalk::WalkDir::new(&path)
+            .follow_links(false)
+            .skip_hidden(false)
+            .into_iter()
+            .count();
+
+        fail(format!(
+            "{} items could not be deleted (in use or access denied){}",
+            remaining,
+            last_error.map(|err| format!(": {}", err)).unwrap_or_default()
+        ));
+    }
+
+    if walk_errors > 0 {
+        println!(
+            "{} entries could not be read while scanning, but were removed afterwards",
+            walk_errors
+        );
+    }
+
+    println!(
+        "Deleted {} items in {:.2}s",
+        total,
+        start.elapsed().as_secs_f32()
+    );
 }
