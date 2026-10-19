@@ -17,6 +17,28 @@ Turbodelete is a blazing fast alternative to the default Windows delete function
 
 # :zap: Installation
 
+### Installer (recommended)
+
+Download **[Turbo-Delete-Install.exe](https://github.tobse.eu/turbo-delete/Turbo-Delete-Install.exe)** and double-click it.
+
+- Installs for the current user to `%LOCALAPPDATA%\Programs\Turbo Delete`, no admin rights needed.
+- Adds "Turbo Delete" to the Explorer context menu of folders and files. On Windows 11 it is in the classic menu ("Show more options" or Shift+F10).
+- Adds `turbo-delete` to the PATH, so it works in every new terminal.
+- Both can be deselected during setup. On the last page Explorer can be restarted, which is usually not needed.
+- Uninstall it in Settings > Apps, which also removes the context menu entry and the PATH entry.
+
+<br>
+
+### Install using PowerShell
+
+Runs the same installer silently with all options:
+
+```powershell
+iwr -useb https://github.tobse.eu/turbo-delete/install.ps1 | iex
+```
+
+<br>
+
 ### Build from source
 
 Requires Rust 1.89 or newer:
@@ -27,37 +49,18 @@ cargo install --path . --locked
 
 `--locked` is needed, without it cargo picks newer dependency versions that do not compile.
 
-<br>
-
-### Context menu
-
-Run this in a regular PowerShell window to add a "Turbo Delete" entry for folders and files (current user only, no admin rights needed):
-
-```powershell
-.\dist\register-context-menu.ps1
-```
-
-On Windows 11 the entry is in the classic menu ("Show more options" or Shift+F10). If several items are selected, they are deleted after a single confirmation. `.\dist\unregister-context-menu.ps1` removes the entry again.
-
-Do not run the script from a terminal inside an app installed as MSIX package: those apps write `HKEY_CURRENT_USER\Software\Classes` into a private copy of the registry, so Explorer never sees the entry.
+To add the context menu entry for this build, run `.\dist\register-context-menu.ps1` in a regular PowerShell window. `.\dist\unregister-context-menu.ps1` removes it again. Do not run it from a terminal inside an app installed as MSIX package: those apps write `HKEY_CURRENT_USER\Software\Classes` into a private copy of the registry, so Explorer never sees the entry.
 
 <br>
 
-### Install Using Powershell
-
-The installer below downloads the prebuilt v0.0.1, which does not contain the changes described in [Usage](#usage).
-
-First you'll need to set your execution policy to RemoteSigned if not done so:
+### Building a release
 
 ```powershell
-Set-ExecutionPolicy RemoteSigned
+winget install JRSoftware.InnoSetup
+python automate-release.py
 ```
 
-Run the following command on your powershell window:
-
-```powershell
-iwr -useb cdn.xtremedevx.com/turbo-delete/install.ps1 | iex
-```
+This builds `bin\turbo-delete.exe` and the installer `dist\Turbo-Delete-Install.exe` with the version from `Cargo.toml`.
 
 <br>
 
@@ -76,12 +79,6 @@ turbo-delete [--contents] [--confirm] <path>...
 - Everything is deleted permanently, nothing goes to the recycle bin.
 
 <br>
-<br>
-
-## :clap: Supporters
-
-![Stargazers repo roster for @suptejas/turbo-delete](https://reporoster.com/stars/suptejas/turbo-delete)
-
 <br>
 
 
