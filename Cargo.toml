@@ -2,16 +2,15 @@
 name = "turbo-delete"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.89"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 jwalk = "0.6.0"
-futures = "0.3.19"
 indicatif = "0.16.2"
 owo-colors = "3.2.0"
 rayon = "1.5.1"
-rusty_pool = "0.6.0"
 
 [profile.release-optimized]
 inherits = "release"
